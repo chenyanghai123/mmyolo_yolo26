@@ -1,0 +1,75 @@
+# YOLO26 detection (standard NMS variant) — small size
+# Pure-PyTorch open-source version. Placeholders: {num-class}, {epoch}, {sw}, {sh}
+Model:
+  type: "YOLO26"
+  pretrained_model_path: ""
+  pretrained_neck_path: ""
+  pretrained_head_path: ""
+  backbone:
+    arch: "P5"
+    last_stage_out_channels: 1024
+    deepen_factor: 0.5
+    widen_factor: 0.5
+    in_channels: 3
+    out_indices: [2, 3, 4]
+  neck:
+    deepen_factor: 0.5
+    widen_factor: 0.5
+    in_channels: [512, 512, 1024]
+    out_channels: [256, 512, 1024]
+    num_csp_blocks: 2
+  bbox_head:
+    head_module:
+      num_classes: {num-class}
+      in_channels: [256, 512, 1024]
+      widen_factor: 0.5
+      featmap_strides: [8, 16, 32]
+      reg_max: 16
+    loss_cls: {use_sigmoid: True, reduction: "none", loss_weight: 0.5}
+    loss_bbox: {iou_mode: "ciou", bbox_format: "xyxy", reduction: "sum", loss_weight: 7.5, return_iou: False}
+    loss_dfl: {reduction: "mean", loss_weight: 0.375}
+  train_cfg:
+    assigner:
+      topk: 10
+      alpha: 0.5
+      beta: 6.0
+      eps: 0.000000001
+      use_ciou: True
+  test_cfg:
+    score_thr: 0.05
+    conf_thr: 0.001
+    nms: {iou_threshold: 0.7}
+    max_per_img: 300
+
+Data:
+  processors:
+    train_pipeline:
+      - {type: "LoadAnnotations", with_bbox: True}
+      - {type: "JointPad", size: [{sw}, {sh}], sym_pad: True}
+      - {type: "JointResize", img_scale: [[{sh}, {sw}]]}
+      - {type: "JointRandomCrop", crop_size: [{sh}, {sw}]}
+      - {type: "JointRandomFlip", prob: 0.5, direction: "horizontal"}
+      - {type: "Normalize", mean: [0, 0, 0], std: [255, 255, 255], to_rgb: True}
+      - {type: "Pad", size_divisor: 32, pad_val: 0.447}
+      - {type: "DefaultFormatBundle"}
+      - {type: "Collect", keys: ["img", "gt_bboxes", "gt_labels", "ori_shape", "img_shape", "scale_factor", "pad_param"]}
+    val_pipeline:
+      - {type: "LoadAnnotations", with_bbox: True}
+      - {type: "JointPad", size: [{sw}, {sh}], sym_pad: True}
+      - {type: "JointResize", img_scale: [[{sh}, {sw}]]}
+      - {type: "Normalize", mean: [0, 0, 0], std: [255, 255, 255], to_rgb: True}
+      - {type: "Pad", size_divisor: 32, pad_val: 0.447}
+      - {type: "DefaultFormatBundle"}
+      - {type: "Collect", keys: ["img", "gt_bboxes", "gt_labels", "ori_shape", "img_shape", "scale_factor", "pad_param"]}
+  train_dataloader:
+    batch_size: 8
+    num_workers: 4
+    dataset:
+      data_info_files: ["Annotations/train.csv"]
+      class_names: "Annotations/class_names_list.txt"
+  val_dataloader:
+    batch_size: 8
+    num_workers: 4
+    dataset:
+      data_info_files: ["Annotations/val.csv"]
+      class_names: "Annotations/class_names_list.txt"
